@@ -53,20 +53,6 @@ An autonomous tenant (or agent) owned by an organization. Each business has its 
 
 ------------------------------------------------------------------------
 
-### business_api_keys
-
-API keys are scoped to a specific business.
-
-    id                    UUID PK
-    business_id           UUID FK → businesses.id
-    api_key               TEXT UNIQUE NOT NULL
-    api_secret_hash       TEXT NOT NULL
-    is_active             BOOLEAN DEFAULT true
-
-A business can have a maximum of 2 active api_key pairs at any time.
-
-------------------------------------------------------------------------
-
 ### users
 
     id                UUID PK
@@ -78,7 +64,7 @@ A business can have a maximum of 2 active api_key pairs at any time.
 
 ------------------------------------------------------------------------
 
-### user_business_access
+### user_access
 
 Join table for business_admin/viewer access to specific businesses.
 
@@ -101,7 +87,7 @@ All tenant tables exist within the tenant\_\<business_slug\> schema.
 
 ------------------------------------------------------------------------
 
-### business_configs (formerly client_configs)
+### configs (formerly client_configs)
 
     id                UUID PK
     config_key        TEXT NOT NULL
@@ -117,6 +103,19 @@ Common config_keys:
     greeting_template           — initial greeting text template
     unknown_response_template   — response template for unknown queries
     voice_config                — default speaker, pace, language for TTS
+
+------------------------------------------------------------------------
+
+### api_keys
+
+API keys are now scoped to a specific business schema for complete isolation.
+
+    id                    UUID PK
+    api_key               TEXT UNIQUE NOT NULL
+    api_secret_hash       TEXT NOT NULL
+    is_active             BOOLEAN DEFAULT true
+
+A business can have a maximum of 2 active api_key pairs at any time.
 
 ------------------------------------------------------------------------
 
@@ -238,4 +237,4 @@ businesses.schema_name maps to the tenant schema name (tenant\_\<slug\>).
     sessions:         (business_id, created_on), (user_identifier)
     messages:         (session_id, created_on)
     businesses:       (org_id), (slug)
-    business_api_keys: (business_id), (api_key)
+    api_keys:         (api_key)

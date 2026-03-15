@@ -1,0 +1,20 @@
+name: minerva
+runtime: python
+description: Minerva Tech Platform (Multi-Tenant AI Ingestion & Dashboard)
+template:
+  config:
+    aws:region:
+      description: The AWS region to deploy into
+      default: us-east-1
+    minerva:environment:
+      description: Deployment environment (e.g. dev, prod)
+      default: dev
+    minerva:deploy_core:
+      description: Whether to deploy the core API service
+      default: "false"
+    minerva:deploy_ingestion:
+      description: Whether to deploy the ingestion task definition
+      default: "true"
+    minerva:deploy_dashboard:
+      description: Whether to deploy the amplify dashboard
+      default: "false"

@@ -1,9 +1,16 @@
-# Dockerfile for the Ingestion worker.
-#
-# Base: python:3.11-slim
-# Entry: python -m ingestion.main --job-id <job_id>
-#
-# Build context should be the repository root so that both
-# ingestion/ and shared/ are available.
-#
-# Deployment: ECS (min 0, max 2 tasks, triggered on demand)
+FROM python:3.11-slim
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
+    libmagic1 \
+    && rm -rf /var/lib/apt/lists/*
+COPY ingestion/requirements.txt /app/ingestion/requirements.txt
+RUN pip install --no-cache-dir -r ingestion/requirements.txt
+COPY ingestion/ /app/ingestion/
+COPY shared/ /app/shared/
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+ENTRYPOINT ["python", "-m", "ingestion.main"]

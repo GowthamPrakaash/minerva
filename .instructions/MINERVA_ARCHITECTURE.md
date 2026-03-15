@@ -264,7 +264,7 @@ core must never crash on a single component failure.
 
 ### AWS Infrastructure
 
-    Dashboard:   EC2 instance
+    Dashboard:   AWS Amplify
     Core:        ECS (Fargate or EC2-backed)
                    - Minimum desired tasks: 2
                    - Maximum tasks: 5
@@ -277,6 +277,11 @@ core must never crash on a single component failure.
                    - Triggered on-demand by dashboard
     Database:    RDS PostgreSQL 15+
     Storage:     S3 (documents, audio, archived vector indexes)
+
+### Considerations
+- Dashboard is a single web application hosted in AWS Amplify that talks to Postgres DB; Triggers Ingestion pipeline on-demand; Manages documents in S3
+- Core is a FastAPI application that handles all chat/voice related APIs with an AL connecting to Postgres DB and S3
+- Ingestion is a python script that has access to postgres DB and S3 
 
 ### Why Sticky Sessions on Core
 
