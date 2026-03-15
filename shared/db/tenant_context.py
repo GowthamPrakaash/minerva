@@ -19,5 +19,58 @@ Notes:
     - Every database operation within a tenant scope must go through
       a connection that has its search_path set.
     - Global tables (clients, users, system_settings) are accessed
-      via the 'public' schema.
+       via the 'public' schema.
 """
+
+import re
+
+import asyncpg
+
+
+_SLUG_RE = re.compile(r"^[a-z0-9_]+$")
+
+
+def get_tenant_schema(business_slug: str) -> str:
+    """
+    Return the PostgreSQL schema name for a given business slug.
+
+    Args:
+        business_slug: The business's lowercase URL-safe slug (e.g. 'acme_sales').
+
+    Returns:
+        'tenant_<slug>' — e.g. 'tenant_acme_sales'.
+
+    Raises:
+        ValueError: If the slug contains characters that could cause SQL injection.
+    """
+    slug = business_slug.lower().strip()
+    if not _SLUG_RE.match(slug):
+        raise ValueError(
+            f"Invalid business slug '{slug}'. Only lowercase letters, digits, "
+            "and underscores are allowed."
+        )
+    return f"tenant_{slug}"
+
+
+async def set_tenant_schema(conn: asyncpg.Connection, schema_name: str) -> None:
+    """
+    Set the PostgreSQL search_path for this connection to the tenant schema.
+
+    Args:
+        conn:        An active asyncpg connection.
+        schema_name: Target schema name (e.g. 'tenant_acme').
+    """
+    # Validate schema name to prevent injection
+    if not _SLUG_RE.match(schema_name.replace("tenant_", "", 1)):
+        raise ValueError(f"Unsafe schema name: '{schema_name}'")
+    await conn.execute(f"SET search_path TO {schema_name}, public")
+
+
+async def reset_to_public(conn: asyncpg.Connection) -> None:
+    """
+    Reset the search_path back to 'public' (global tables only).
+
+    Args:
+        conn: An active asyncpg connection.
+    """
+    await conn.execute("SET search_path TO public")
