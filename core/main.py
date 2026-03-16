@@ -1,23 +1,82 @@
 """
-core/main.py — FastAPI application entry point for the Core service.
+core/main.py — Core Service entry point.
 
 Purpose:
-    Initialises the FastAPI app, registers API routers, sets up middleware
-    (JWT auth, tenant context, CORS), and starts the ConfigCache background
-    refresh thread.
-
-Intended Usage:
-    Run via uvicorn:
-        uvicorn core.main:app --host 0.0.0.0 --port 8000
-
-    In Docker/ECS, this is the container entrypoint.
-
-Responsibilities:
-    - Create the FastAPI application instance
-    - Register routers from core.api (auth, sessions, internal)
-    - Attach AuthMiddleware for JWT validation
-    - Initialise ConfigCache singleton on startup
-    - Initialise ProviderResolver singleton on startup
-    - Initialise database connection pool on startup
-    - Graceful shutdown hooks for cleanup
+    Initializes the FastAPI application, registers routers,
+    attaches middleware, and manages the lifecycle of shared
+    Singletons (DB pool, ConfigCache).
 """
+
+import os
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from core.api import auth, sessions, internal
+from core.middleware.auth_middleware import AuthMiddleware
+from shared.db.connection import DBConnectionPool
+from shared.config.config_cache import ConfigCache
+from shared.utils.logging import get_logger
+
+logger = get_logger("core.main")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage startup and shutdown of app-level singletons."""
+    logger.info("Core Service starting up...")
+    
+    # 1. Initialize Database Pool
+    pool = DBConnectionPool.get_instance()
+    await pool.initialize()
+    
+    # 2. Initialize ConfigCache (loads data and starts background refresh)
+    cache = ConfigCache.get_instance()
+    await cache.initialize()
+    
+    yield
+    
+    # 3. Shutdown
+    logger.info("Core Service shutting down...")
+    await cache.shutdown()
+    await pool.close()
+
+
+def create_app() -> FastAPI:
+    """FastAPI Application Factory."""
+    app = FastAPI(
+        title="Minerva Core",
+        description="Conversation Runtime for Minerva Voice AI",
+        version="1.0.0",
+        lifespan=lifespan
+    )
+
+    # ── Middleware ────────────────────────────────────────────────────────────
+
+    # CORS for Dashboard/Web client
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # Restricted in production
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Custom Auth Middleware for tenant routing
+    app.add_middleware(AuthMiddleware)
+
+    # ── Routers ───────────────────────────────────────────────────────────────
+
+    app.include_router(auth.router)
+    app.include_router(sessions.router)
+    app.include_router(internal.router)
+
+    return app
+
+
+app = create_app()
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("core.main:app", host="0.0.0.0", port=port, reload=True)

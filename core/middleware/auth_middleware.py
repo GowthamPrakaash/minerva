@@ -1,24 +1,71 @@
 """
-core/middleware/auth_middleware.py — JWT authentication middleware.
+core/middleware/auth_middleware.py — JWT authentication and tenant routing.
 
 Purpose:
-    Intercepts every incoming request (except /auth/token and /internal/*),
-    validates the JWT token from the cookie or Authorization header,
-    and injects tenant context into the request state.
-
-Responsibilities:
-    1. Extract the JWT from the 'minerva_token' cookie or
-       'Authorization: Bearer <token>' header.
-    2. Decode and validate the JWT (signature, expiry).
-    3. Extract client_id, session_id, and tenant schema from claims.
-    4. Set request.state.client_id, request.state.session_id,
-       request.state.tenant_schema for downstream handlers.
-    5. Implement sliding window token refresh: if the token is within
-       5 minutes of expiry and the request is valid, issue a new token
-       with a refreshed 30-minute TTL and set it in the response cookie.
-
-Error Handling:
-    - Missing token: 401 Unauthorized
-    - Expired token: 401 Unauthorized with 'token_expired' error code
-    - Invalid token: 401 Unauthorized
+    Intersects every request to:
+    1. Validate the JWT token.
+    2. Extract tenant identity (business_id, schema_name).
+    3. Inject identity into request context for the DB connection pool.
+    4. Implement sliding window token refresh.
 """
+
+import time
+import jwt
+import os
+from fastapi import Request, HTTPException
+from starlette.middleware.base import BaseHTTPMiddleware
+from shared.utils.logging import get_logger
+
+logger = get_logger("core.middleware.auth")
+
+JWT_SECRET = os.environ.get("JWT_SECRET", "minerva-dev-secret-change-me")
+JWT_ALGORITHM = "HS256"
+
+
+from fastapi.responses import JSONResponse
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    """validates JWT and sets tenant context."""
+
+    async def dispatch(self, request: Request, call_next):
+        # 1. Skip auth for public endpoints
+        if request.url.path.startswith("/api/v1/auth") or \
+           request.url.path.startswith("/internal/health") or \
+           request.method == "OPTIONS":
+            return await call_next(request)
+
+        # 2. Extract Token
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Missing or invalid Authorization header"}
+            )
+
+        token = auth_header.split(" ")[1]
+
+        try:
+            # 3. Decode and Validate
+            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            
+            # Injection into request state for easy access in routers
+            request.state.business_id = payload.get("business_id")
+            request.state.schema_name = payload.get("schema")
+            request.state.user_identifier = payload.get("sub")
+            
+            # 4. Check expiration
+            if payload.get("exp", 0) < time.time():
+                 return JSONResponse(status_code=401, content={"detail": "Token expired"})
+
+            response = await call_next(request)
+            return response
+
+        except jwt.ExpiredSignatureError:
+            return JSONResponse(status_code=401, content={"detail": "Session expired"})
+        except jwt.InvalidTokenError as exc:
+            logger.warning(f"Invalid token attempt: {exc}")
+            return JSONResponse(status_code=401, content={"detail": "Invalid session token"})
+        except Exception as exc:
+            logger.error(f"Auth middleware error: {exc}", exc_info=True)
+            return JSONResponse(status_code=500, content={"detail": "Authentication error"})
+

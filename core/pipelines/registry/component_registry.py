@@ -1,25 +1,26 @@
 """
-core/pipelines/registry/component_registry.py — Component Registry.
+core/pipelines/registry/component_registry.py — Component map.
 
 Purpose:
-    Maps component name strings to their corresponding Python classes.
-    PipelineBuilder uses this registry to resolve component names from
-    client_configs into actual class instances.
-
-Registry Map:
-    "stt"            → STTComponent
-    "translation"    → TranslationComponent
-    "memory"         → ConversationMemoryComponent
-    "rag"            → RAGComponent
-    "goal_steering"  → GoalSteeringComponent
-    "llm"            → LLMComponent
-    "tts"            → TTSComponent
-
-Usage:
-    component_class = COMPONENT_REGISTRY["stt"]
-    component = component_class()
-
-Notes:
-    - New components must be registered here to be available in pipelines.
-    - The registry is a simple dict — no dynamic discovery.
+    Registry that maps string identifiers to component class implementations.
+    Used by PipelineBuilder to instantiate pipelines.
 """
+
+from ..components.stt_component import STTComponent
+from ..components.translation_component import TranslationInComponent, TranslationOutComponent
+from ..components.memory_component import MemoryComponent
+from ..components.rag_component import RAGComponent
+from ..components.goal_steering_component import GoalSteeringComponent
+from ..components.llm_component import LLMComponent
+from ..components.tts_component import TTSComponent
+
+COMPONENT_REGISTRY = {
+    "stt":            STTComponent,
+    "translation_in": TranslationInComponent,
+    "memory":         MemoryComponent,
+    "rag":            RAGComponent,
+    "goal_steering": GoalSteeringComponent,
+    "llm":            LLMComponent,
+    "translation_out": TranslationOutComponent,
+    "tts":            TTSComponent,
+}
