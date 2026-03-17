@@ -3,7 +3,6 @@ shared/storage/s3_storage.py — AWS S3 implementation of StorageProvider.
 """
 
 import boto3
-import aiobotocore
 from botocore.exceptions import ClientError
 from .base import StorageProvider
 from shared.utils.logging import get_logger
