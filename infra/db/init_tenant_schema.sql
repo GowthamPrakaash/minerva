@@ -115,9 +115,8 @@ CREATE TABLE IF NOT EXISTS usage_records (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
-    stt_seconds INTEGER,
-    llm_tokens INTEGER,
-    tts_characters INTEGER,
+    metrics JSONB,
+    latency_ms JSONB,
     cost_estimate FLOAT,
 
     -- Audit columns

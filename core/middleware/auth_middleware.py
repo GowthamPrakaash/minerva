@@ -57,8 +57,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
             if payload.get("exp", 0) < time.time():
                  return JSONResponse(status_code=401, content={"detail": "Token expired"})
 
-            response = await call_next(request)
-            return response
 
         except jwt.ExpiredSignatureError:
             return JSONResponse(status_code=401, content={"detail": "Session expired"})
@@ -66,6 +64,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
             logger.warning(f"Invalid token attempt: {exc}")
             return JSONResponse(status_code=401, content={"detail": "Invalid session token"})
         except Exception as exc:
-            logger.error(f"Auth middleware error: {exc}", exc_info=True)
-            return JSONResponse(status_code=500, content={"detail": "Authentication error"})
+            logger.error(f"Auth middleware token parsing error: {exc}", exc_info=True)
+            return JSONResponse(status_code=500, content={"detail": "Authentication validation error"})
+
+        response = await call_next(request)
+        return response
 
