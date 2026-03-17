@@ -44,15 +44,13 @@ class MessageRepository:
 
     async def record_usage(self, session_id: uuid.UUID, message_id: uuid.UUID, metrics: dict) -> None:
         query = """
-        INSERT INTO usage_records (session_id, message_id, stt_seconds, llm_tokens, tts_characters, cost_estimate, latency_ms)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO usage_records (session_id, message_id, cost_estimate, metrics, latency_ms)
+        VALUES ($1, $2, $3, $4, $5)
         """
         async with get_connection(self.schema_name) as conn:
             await conn.execute(
                 query, session_id, message_id,
-                metrics.get("stt_seconds", 0),
-                metrics.get("llm_tokens", 0),
-                metrics.get("tts_characters", 0),
                 metrics.get("cost_estimate", 0.0),
+                json.dumps(metrics.get("consumption", {})),
                 json.dumps(metrics.get("latency_ms")) if metrics.get("latency_ms") else None
             )

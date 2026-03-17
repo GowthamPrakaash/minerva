@@ -22,9 +22,11 @@ async def record_usage(
     cost_estimate = stt_cost + llm_cost + tts_cost
 
     metrics = {
-        "stt_seconds": stt_seconds,
-        "llm_tokens": llm_tokens,
-        "tts_characters": tts_characters,
+        "consumption": {
+            "stt_seconds": stt_seconds,
+            "llm_tokens": llm_tokens,
+            "tts_characters": tts_characters,
+        },
         "cost_estimate": cost_estimate,
         "latency_ms": latency_ms
     }
