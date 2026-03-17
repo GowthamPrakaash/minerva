@@ -90,7 +90,7 @@ async def test_ingestion_repo_get_job(mock_get_conn):
     
     mock_conn.fetchrow.side_effect = [
         {"id": job_id, "trigger_document_id": doc_id, "status": "initiated", "document_ids": [], "error_message": None, "chunks_processed": 0, "started_at": None, "completed_at": None},
-        {"id": doc_id, "filename": "test.pdf", "file_type": "pdf", "s3_path": "s3://path"},
+        {"id": doc_id, "filename": "test.pdf", "file_type": "pdf", "storage_path": "s3://path"},
         {"id": biz_id}
     ]
     

@@ -100,7 +100,7 @@ async def process_message(
         stt_seconds=context.stt_seconds,
         llm_tokens=context.llm_tokens,
         tts_characters=context.tts_characters,
-        latency_ms={k: int(v * 1000) for k, v in context.tracker.all().items()}
+        latency_ms={k: round(v * 1000) for k, v in context.tracker.all().items()}
     )
 
     # 5. Handle Audio persistence (S3 upload would happen here in production)
@@ -115,7 +115,7 @@ async def process_message(
         response_text=context.final_response,
         response_audio_url=audio_url,
         is_complete=context.is_complete,
-        latency_ms={k: v * 1000 for k, v in context.tracker.all().items()}
+        latency_ms={k: round(v * 1000) for k, v in context.tracker.all().items()}
     )
 
 

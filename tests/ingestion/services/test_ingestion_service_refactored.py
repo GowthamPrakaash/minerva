@@ -53,7 +53,7 @@ async def test_process_job_success(
     job_id = uuid.uuid4()
     
     job = MagicMock(id=job_id)
-    doc = MagicMock(id=doc_id, s3_path="s3://b/k", filename="t.pdf", file_type="pdf")
+    doc = MagicMock(id=doc_id, storage_path="s3://b/k", filename="t.pdf", file_type="pdf")
     
     mock_repo.get_job_and_document.return_value = (job, doc, biz_id)
     mock_repo.get_active_documents_except.return_value = []

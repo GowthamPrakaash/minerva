@@ -25,7 +25,6 @@ from shared.storage.resolver import get_storage_provider
 
 logger = get_logger("ingestion.services.ingestion_service")
 
-_STORAGE_BUCKET = os.environ.get("S3_BUCKET", "minerva-documents")
 _DEFAULT_EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 
 
@@ -52,7 +51,7 @@ async def process_job(job_id: str) -> bool:
         await repo.update_job_status(job_uuid, IngestionStatus.IN_PROGRESS, started_at=datetime.now(timezone.utc))
 
         # 3. Download document
-        temp_file = await _download_file(document.s3_path, document.filename)
+        temp_file = await _download_file(document.storage_path, document.filename)
 
         # 4. Parse
         raw_text = parser.parse(temp_file, document.file_type)
@@ -109,13 +108,19 @@ async def process_job(job_id: str) -> bool:
             os.remove(temp_file)
 
 
-async def _download_file(s3_path: str, filename: str) -> str:
+async def _download_file(storage_path: str, filename: str) -> str:
     """Download file via StorageProvider."""
-    if not s3_path.startswith("s3://"):
-        raise IngestionError("download", f"Invalid path: {s3_path}")
+    # Handles dynamically generated paths from storage providers like `s3://bucket/key` or `local://bucket/key`
+    if "://" not in storage_path:
+        raise IngestionError("download", f"Invalid path format: {storage_path}")
 
-    parts = s3_path[len("s3://"):].split("/", 1)
-    bucket, key = parts
+    # Split the protocol (e.g., s3://, local://) from the actual path
+    provider_prefix, path = storage_path.split("://", 1)
+    
+    if "/" not in path:
+        raise IngestionError("download", f"Invalid path structure (missing bucket/key): {storage_path}")
+        
+    bucket, key = path.split("/", 1)
     ext = os.path.splitext(filename)[1] or ".tmp"
 
     tmp_path = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}{ext}")
@@ -141,24 +146,34 @@ async def _build_combined_embeddings(
 
     others = await repo.get_active_documents_except(current_doc.id)
     for other in others:
-        if not other.s3_path: continue
+        if not other.storage_path:
+            continue
         
-        logger.info(f"Re-embedding: {other.filename}")
-        tmp_file = await _download_file(other.s3_path, other.filename)
+        logger.info(f"Re-embedding previous active document: {other.filename}")
+        tmp_file = None
         try:
-            text = parser.parse(tmp_file, other.file_type)
-            chunks = chunker.chunk(text)
-            if not chunks: continue
-            
-            embs = embedder.embed([c["text"] for c in chunks], model_name=_DEFAULT_EMBEDDING_MODEL)
-            all_embeddings.append(embs)
-            all_metadata.extend([
-                {**c, "document_id": str(other.id), "filename": other.filename}
-                for c in chunks
-            ])
-        finally:
-            if os.path.exists(tmp_file):
-                os.remove(tmp_file)
+            tmp_file = await _download_file(other.storage_path, other.filename)
+            try:
+                text = parser.parse(tmp_file, other.file_type)
+                chunks = chunker.chunk(text)
+                if not chunks:
+                    continue
+                
+                embs = embedder.embed([c["text"] for c in chunks], model_name=_DEFAULT_EMBEDDING_MODEL)
+                all_embeddings.append(embs)
+                all_metadata.extend([
+                    {**c, "document_id": str(other.id), "filename": other.filename}
+                    for c in chunks
+                ])
+            finally:
+                if tmp_file and os.path.exists(tmp_file):
+                    os.remove(tmp_file)
+        except (FileNotFoundError, IngestionError) as e:
+            logger.warning(f"Skipping document {other.filename} (ID: {other.id}) because source is missing or invalid: {e}")
+            continue
+        except Exception as e:
+            logger.error(f"Unexpected error re-embedding {other.filename} (ID: {other.id}): {e}", exc_info=True)
+            continue
 
     combined = np.vstack(all_embeddings).astype(np.float32)
     return combined, all_metadata

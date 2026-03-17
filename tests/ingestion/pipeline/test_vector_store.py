@@ -92,7 +92,7 @@ class TestSaveIndex:
         assert mock_s3.upload_file.call_count == 2
         assert result.startswith("s3://")
 
-    def test_returns_correct_s3_path(self, embeddings_3x4, metadata_3, mock_s3):
+    def test_returns_correct_storage_path(self, embeddings_3x4, metadata_3, mock_s3):
         index = build_index(embeddings_3x4, metadata_3)
         business_id = "abc123"
         job_id = "job456"

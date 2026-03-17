@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     filename TEXT NOT NULL,
     file_type TEXT NOT NULL, -- pdf, docx, txt, etc.
-    s3_path TEXT NOT NULL,
+    storage_path TEXT NOT NULL,
     version INTEGER DEFAULT 1,
     is_active BOOLEAN DEFAULT true,
     chunk_count INTEGER,
