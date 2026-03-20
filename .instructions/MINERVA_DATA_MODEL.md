@@ -152,7 +152,7 @@ A business can have a maximum of 2 active api_key pairs at any time.
     id                UUID PK
     filename          TEXT NOT NULL
     file_type         TEXT DEFAULT 'pdf'
-    s3_path           TEXT NOT NULL (s3://bucket/businesses/{id}/docs/)
+    storage_path      TEXT NOT NULL (e.g. s3://bucket/businesses/{id}/docs/)
     version           INT NOT NULL DEFAULT 1
     is_active         BOOLEAN DEFAULT true
     chunk_count       INT

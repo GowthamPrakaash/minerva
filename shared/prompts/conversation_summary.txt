@@ -1,13 +1,11 @@
-# Conversation Summary Prompt
-#
-# Purpose:
-#     Used by MemoryComponent to generate and update the rolling
-#     conversation summary via LLM.
-#
-# Two variants:
-#     initial_summary  — creates a summary from the first few messages
-#     update_summary   — updates an existing summary with new messages
-#
-# Template Variables:
-#     {previous_summary}  — existing summary (for updates)
-#     {recent_messages}   — last 4 messages to incorporate
+Previous Summary: {previous_summary}
+
+New messages:
+{recent_messages}
+
+Update the summary to include key info from new messages. Keep it to 2-3 sentences.
+Focus on:
+- User's primary intent/interest
+- Key details provided (names, dates, preferences)
+- Current status of the goal
+- Any unknown questions raised

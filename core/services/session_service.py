@@ -1,18 +1,35 @@
 """
 core/services/session_service.py — Session management service.
-
-Purpose:
-    Encapsulates all session-related database operations and business logic.
-
-Methods:
-    create_session(client_id, channel, user_identifier, language) → Session
-    get_session(session_id, tenant_schema) → Session
-    update_session(session_id, updates) → Session
-    end_session(session_id) → Session
-    update_conversation_summary(session_id, summary)
-    update_goal_state(session_id, goal_state_json)
-
-Notes:
-    - All methods operate within the tenant schema.
-    - Session reads/writes happen at pipeline boundaries, not inside components.
 """
+
+from __future__ import annotations
+import uuid
+from typing import Optional
+from core.repositories.session_repository import SessionRepository
+from shared.models.session import Session
+from shared.utils.logging import get_logger
+
+logger = get_logger("core.services.session_service")
+
+
+async def create_session(
+    schema_name: str,
+    channel: str,
+    user_identifier: str,
+    created_by: Optional[uuid.UUID] = None
+) -> Session:
+    repo = SessionRepository(schema_name)
+    session = await repo.create(channel, user_identifier)
+    logger.info(f"SessionService: Created session {session.id}")
+    return session
+
+
+async def get_session(session_id: uuid.UUID, schema_name: str) -> Optional[Session]:
+    repo = SessionRepository(schema_name)
+    return await repo.get_by_id(session_id)
+
+
+async def end_session(session_id: uuid.UUID, schema_name: str) -> None:
+    repo = SessionRepository(schema_name)
+    await repo.end(session_id)
+    logger.info(f"SessionService: Ended session {session_id}")

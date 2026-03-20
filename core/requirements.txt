@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pydantic
+PyJWT
+python-multipart
+httpx
+asyncpg
+aiofiles
+boto3
+python-dotenv

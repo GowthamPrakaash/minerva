@@ -1,107 +1,98 @@
-# MINERVA_DEVELOPER_GUIDE.md
+# MINERVA Developer Onboarding & Integration Guide
 
-## Multi‑Tenancy Strategy
+Welcome to Minerva! This document provides technical details to help developers understand the architecture, integrate with the dashboard, and manage system behavior.
 
-Minerva uses **hierarchical schema‑per‑tenant isolation** at the business level.
+---
 
--   **Organizations** are top-level billing entities.
--   **Businesses** are autonomous tenants within an organization.
--   Each Business has its own **PostgreSQL schema** (`tenant_<business_slug>`).
--   Each Business has its own **FAISS vector index** stored in S3.
--   Each Business has its own **configuration** in `business_configs`.
+## 1. Project Onboarding Checklist
 
-### Tenant Routing (Runtime)
+1.  **Clone & Setup Environment**:
+    *   Initialize a Python 3.12+ virtual environment.
+    *   `pip install -r requirements.txt`.
+2.  **Database Initialisation**:
+    *   Ensure a PostgreSQL instance is running.
+    *   Apply base schemas (see `infra/db/`).
+3.  **Local Storage**:
+    *   Create a local directory for file storage (default: `/tmp/minerva_storage`).
+4.  **Configuration**:
+    *   Copy `.env.example` to `.env` and fill in provider API keys (e.g., `SARVAM_API_KEY`).
+5.  **Run Services**:
+    *   **Core API**: `uvicorn core.main:app --reload --port 8000`
+    *   **Ingestion**: Triggered via `ingestion/main.py` (CLI or ECS task).
 
-The `TENANT_SCHEMA` environment variable is used in ECS tasks (like Ingestion) to lock a process to a specific tenant. In the Core API, the schema is determined from the **JWT token** (the `schema` claim).
+---
 
-All database queries *must* use the `tenant_context` to ensure data isolation. Use `get_connection(schema_name)` to obtain a connection with the correct `search_path`.
+## 2. Configuration & System Controls
 
-------------------------------------------------------------------------
+### 2.1 Environment Variables (`.env`)
+| Variable | Description | Default |
+| :--- | :--- | :--- |
+| `DB_HOST` | Database host address | `localhost` |
+| `STORAGE_TYPE` | Storage backend: `local` or `s3` | `local` |
+| `LOCAL_STORAGE_PATH` | Path for `local` storage type | `/tmp/minerva_storage` |
+| `TENANT_SCHEMA` | Active schema for background tasks | `tenant_test` |
+| `SARVAM_API_KEY` | API Key for Sarvam AI services | - |
 
-## Database Development
+### 2.2 Business Level Config (`business_configs` table)
+Minerva is dynamic. Change provider configurations in the `public.business_configs` table to instantly change pipeline behavior for a specific business:
+*   `stt_provider`: (e.g., `sarvam`, `deepgram`)
+*   `llm_provider`: (e.g., `sarvam`, `openai`)
+*   `tts_provider`: (e.g., `sarvam`, `elevenlabs`)
+*   `rag_k_value`: Number of chunks to retrieve (default: `4`)
 
-### Shared Ledger (public schema)
+### 2.3 Feature Flags & Database Controls
+*   **Document Versioning**: `documents.is_active` (bool). Only `true` documents are indexed for RAG.
+*   **Session State**: `sessions.status` (`active`, `ended`).
+*   **Job Tracking**: `ingestion_jobs.status` (`pending`, `processing`, `completed`, `failed`).
 
--   `organizations`: Global billing entities.
--   `businesses`: Tenant metadata and schema mapping.
--   `users`: Global users with `org_id` and roles (`org_admin`, `business_admin`).
--   `business_api_keys`: Scoped to a specific business.
+---
 
-### Tenant Ledger (`tenant_xxxx` schema)
+## 3. Data Layer: Repository Pattern
 
--   `sessions`, `messages`: Per-business conversation history.
--   `documents`, `ingestion_jobs`: Per-business knowledge base.
--   `business_configs`: Per-business pipeline behavior.
+Minerva uses a **Repository Pattern** to abstract PostgreSQL logic and enforce tenant isolation.
 
-### Migrations
+### 3.1 Design Principles
+1.  **Schema Context**: Repositories are instantiated with a `schema_name`.
+2.  **Explicit Connections**: Use `get_connection(self.schema_name)` to automatically set the `search_path`.
+3.  **Model Mapping**: Repositories return Pydantic/Dataclass models (e.g., `UsageRecord`) via the `.from_record()` class method.
 
-When adding a table to the **tenant schema**, the migration script must iterate through all existing schemas in the `businesses` table to apply the change.
+### 3.2 Key Repositories
+*   **`MessageRepository` (Core)**: CRUD for chat history and usage tracking (latency + consumption).
+*   **`SessionRepository` (Core)**: Lifecycle management for conversation sessions.
+*   **`IngestionRepository` (Ingestion)**: Handles document state, versioning (deactivation of old files), and job status updates.
 
-------------------------------------------------------------------------
+---
 
-## Vector Knowledge Base (RAG)
+## 4. API Reference (Internal & Core)
 
-### Ingestion Pipeline
+### 4.1 Internal Operations
+| Method | Route | Description |
+| :--- | :--- | :--- |
+| `GET` | `/internal/health` | Service health and DB connection status. |
+| `POST` | `/internal/cache/refresh` | Force global `ConfigCache` reload from DB. |
+| `POST` | `/internal/cache/invalidate/{biz_id}` | Clear cache for specific tenant. |
 
-1.  **Dashboard** uploads document to `s3://bucket/businesses/{business_id}/docs/`.
-2.  **Ingestion Service** is triggered via ECS.
-3.  **Parser** converts file (PDF/Docx/Txt) to raw text.
-4.  **Chunker** splits text into chunks (~500 tokens).
-5.  **Embedder** generates vectors using the configured model.
-6.  **Vector Store** builds a combined FAISS index for the *entire business* (current document + all other active documents).
-7.  New index is saved to `s3://bucket/businesses/{business_id}/index/`.
-8.  Previous index is archived to `s3://bucket/businesses/{business_id}/archives/{job_id}/`.
+### 4.2 Core Conversation Engine (`/api/v1/sessions`)
+| Method | Route | Payload | Response |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/` | - | `{"session_id": "...", "status": "active"}` |
+| `POST` | `/{id}/message` | Multipart: `text`, `audio` (WAV), `language` | `{"response_text": "...", "latency_ms": {...}}` |
 
-### Querying
+*Note: Dashboard integration should use standard multipart/form-data for message processing to support both voice and text inputs concurrently.*
 
-Core API loads the FAISS index for the business into memory using `ConfigCache`. When a user asks a question, the `rag` component:
-1.  Embeds the query.
-2.  Performs similarity search against the business's index.
-3.  Injects the top-K chunks into the LLM prompt.
+---
 
-------------------------------------------------------------------------
+## 5. Dashboard Integration Summary
 
-## Configuration & Caching
+To integrate the Minerva Dashboard with the Core engine:
+1.  **Session Start**: Call `POST /api/v1/sessions/` to get a UUID.
+2.  **Streaming Audio**: Upload audio segments to the message endpoint.
+3.  **Usage UI**: Fetch metadata from the `tenant_<slug>.usage_records` table to show performance breakdowns.
+4.  **Document Upload**: Upload knowledge base files to S3/Local storage and create a record in `documents` with `is_active = false` (Ingestion handles the rest).
 
-Minerva avoids Redis to reduce infrastructure complexity. Instead, it uses **in-memory caching** with a periodic refresh from Postgres.
+---
 
-### ConfigCache (shared/config/config_cache.py)
-
-A singleton that holds `business_configs` and `system_settings`.
--   **Loading**: Loads all configs for a `business_id` from the database.
--   **TTL**: Refreshes every 5 minutes.
--   **Invalidation**: Core API exposes an `/internal/cache/refresh` endpoint that can be hit manually (or via NOTIFY when ingestion finishes) to force a reload.
-
-------------------------------------------------------------------------
-
-## Coding Standards
-
-### 1. No Ad-hoc Queries
-Always use the models in `shared/models/`. If a complex join is needed, add a method to the model or a utility in `shared/queries/`.
-
-### 2. Graceful Degrations
-If a non-critical pipeline component (like goal-steering or feedback) fails, the pipeline *must* continue. Wrap component executions in try-except blocks.
-
-### 3. Async First
-Everything in Core and Ingestion should be `async` (using `asyncpg` for DB and `httpx` for API calls).
-
-### 4. Logging
-Use `shared/utils/logging.py`. Always include `session_id` or `business_id` in logs where available.
-
-------------------------------------------------------------------------
-
-## Testing
-
-### Unit Tests
-Located in `tests/`. Run with `pytest`. Mock all external API calls (OpenAI, Deepgram, etc.) using `pytest-mock` or `respx`.
-
-### Integration Tests
-Requires a local Postgres instance. Use `tests/conftest.py` which handles schema creation/cleanup for tests.
-
-```bash
-# Run all tests
-pytest tests/
-
-# Run specific service tests
-pytest tests/core/
-```
+## 6. Coding Standards Recap
+*   **Multi-tenant Queries**: Never hardcode schemas. Use `get_connection`.
+*   **Dynamic Metrics**: Usage units are stored in the `metrics` (JSONB) column of `usage_records`. Do not add new columns for specific units (e.g., image counts).
+*   **Async/Await**: Ensure all DB and Provider interactions are awaited.
