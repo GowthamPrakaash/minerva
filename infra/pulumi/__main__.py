@@ -20,10 +20,12 @@ base = BaseInfra(prefix, env)
 if deploy_core:
     core = CoreService(f"{prefix}-core", env, base)
     pulumi.export("core_url", core.service_url)
+    pulumi.export("core_repo_url", core.repo.repository_url)
 
 if deploy_ingestion:
     ingestion = IngestionWorker(f"{prefix}-ingestion", env, base)
     pulumi.export("ingestion_task_arn", ingestion.task_def_arn)
+    pulumi.export("ingestion_repo_url", ingestion.repo.repository_url)
 
 # if deploy_dashboard:
 #     dashboard = DashboardApp(f"{prefix}-dashboard", env)

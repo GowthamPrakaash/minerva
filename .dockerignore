@@ -1,0 +1,9 @@
+.git
+.gemini
+venv
+__pycache__
+*.pyc
+.env
+infra/pulumi/node_modules
+poc/documents
+/tmp/data

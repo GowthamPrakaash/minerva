@@ -11,5 +11,7 @@ COPY core/requirements.txt /app/core/requirements.txt
 RUN pip install --no-cache-dir -r core/requirements.txt
 COPY core/ /app/core/
 COPY shared/ /app/shared/
+COPY ingestion/ /app/ingestion/
+RUN python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='BAAI/bge-small-en-v1.5')"
 EXPOSE 8000
 ENTRYPOINT ["uvicorn", "core.main:app", "--host", "0.0.0.0", "--port", "8000"]
