@@ -130,10 +130,12 @@ class CoreService(pulumi.ComponentResource):
             }],
             opts=pulumi.ResourceOptions(parent=self)
         )
+        self.repo_url = self.repo.repository_url
         self.service_url = pulumi.Output.format(
             "http://{0}",
             self.alb.dns_name
         )
         self.register_outputs({
+            "repo_url": self.repo_url,
             "service_url": self.service_url
         })
