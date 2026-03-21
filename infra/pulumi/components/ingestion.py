@@ -46,10 +46,10 @@ class IngestionWorker(pulumi.ComponentResource):
         # 4. Ingestion Task Definition (1 vCPU, 1 GB RAM, as requested)
         self.task_def = aws.ecs.TaskDefinition(
             f"{name}-task",
-            family=f"{name}-ingestion",
+            family=f"{name}",
             requires_compatibilities=["FARGATE"],
             network_mode="awsvpc",
-            cpu="1024",     # 1 vCPU
+            cpu="512",     # 1 vCPU
             memory="1024",  # 1 GB RAM
             execution_role_arn=base_infra.ecs_execution_role.arn,
             task_role_arn=self.task_role.arn,

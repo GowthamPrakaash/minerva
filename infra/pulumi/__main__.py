@@ -25,9 +25,9 @@ if deploy_ingestion:
     ingestion = IngestionWorker(f"{prefix}-ingestion", env, base)
     pulumi.export("ingestion_task_arn", ingestion.task_def_arn)
 
-if deploy_dashboard:
-    dashboard = DashboardApp(f"{prefix}-dashboard", env)
-    pulumi.export("dashboard_url", dashboard.default_domain)
+# if deploy_dashboard:
+#     dashboard = DashboardApp(f"{prefix}-dashboard", env)
+#     pulumi.export("dashboard_url", dashboard.default_domain)
 
 # Final exports
 pulumi.export("db_endpoint", base.db.address)
