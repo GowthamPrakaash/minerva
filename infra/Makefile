@@ -13,7 +13,7 @@ endif
 # --- Configuration ---
 AWS_REGION ?= us-east-1
 PULUMI_STATE_BUCKET ?= s3://minerva-infra-state
-STACK ?= qa
+STACK ?= dev
 
 # Secrets (should be passed at runtime or as env vars)
 # AWS_ACCESS_KEY_ID ?= 
@@ -52,7 +52,6 @@ init: login
 .PHONY: preview
 preview: login
 	@echo "Previewing infrastructure in stack: $(STACK)..."
-	@echo "Passphrase: $(PULUMI_CONFIG_PASSPHRASE)"
 	@set -a; source .env; set +a;
 	cd pulumi && pulumi up --stack $(STACK)
 	
@@ -81,4 +80,25 @@ delete-stack:
 .PHONY: nuke-stack
 nuke-stack: destroy delete-stack
 	@echo "Nuking stack: $(STACK)..."
-	
+
+# --- Docker Push Commands ---
+
+.PHONY: push-core
+push-core: login
+	@echo "Pushing Core Service to ECR..."
+	$(eval CORE_REPO := $(shell cd pulumi && pulumi stack output core_repo_url --stack $(STACK)))
+	@aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(CORE_REPO)
+	docker build -t $(CORE_REPO):latest -f docker/Dockerfile.core ..
+	docker push $(CORE_REPO):latest
+
+.PHONY: push-ingestion
+push-ingestion: login
+	@echo "Pushing Ingestion Worker to ECR..."
+	$(eval INGESTION_REPO := $(shell cd pulumi && pulumi stack output ingestion_repo_url --stack $(STACK)))
+	@aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(INGESTION_REPO)
+	docker build -t $(INGESTION_REPO):latest -f docker/Dockerfile.ingestion ..
+	docker push $(INGESTION_REPO):latest
+
+.PHONY: push
+push: push-core push-ingestion
+	@echo "All services pushed to ECR."
