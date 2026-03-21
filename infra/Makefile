@@ -51,6 +51,7 @@ aws-config:
 
 .PHONY: login
 login:
+	@set -a; source .env; set +a;
 	@echo "Logging into Pulumi backend: $(PULUMI_STATE_BUCKET)..."
 	@$(DEPLOY_ENV) pulumi login $(PULUMI_STATE_BUCKET)
 
@@ -62,6 +63,7 @@ init: login
 .PHONY: preview
 preview: login
 	@echo "Previewing infrastructure in stack: $(STACK)..."
+	@set -a; source .env; set +a;
 	cd pulumi && $(DEPLOY_ENV) pulumi up --stack $(STACK)
 	
 .PHONY: deploy
@@ -76,16 +78,19 @@ setup: aws-config init deploy
 .PHONY: destroy
 destroy: login
 	@echo "Destroying infrastructure for stack: $(STACK)..."
+	@set -a; source .env; set +a;
 	cd pulumi && $(DEPLOY_ENV) pulumi destroy --yes --stack $(STACK)
 
 .PHONY: delete-stack
 delete-stack:
 	@echo "Deleting stack: $(STACK)..."
+	@set -a; source .env; set +a;
 	cd pulumi && $(DEPLOY_ENV) pulumi stack rm $(STACK) --yes
 
 .PHONY: nuke-stack
-nuke-stack: destroy delete-stack
+nuke-stack:
 	@echo "Nuking stack: $(STACK)..."
+	destroy delete-stack
 
 # --- Docker Push Commands ---
 

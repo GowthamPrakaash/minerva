@@ -20,7 +20,7 @@ class CoreService(pulumi.ComponentResource):
 
         # 2. Log Group
         self.log_group = aws.cloudwatch.LogGroup(
-            f"/ecs/{name}-core",
+            f"/ecs/{name}-log-group",
             retention_in_days=3,
             tags=self.tags,
             opts=pulumi.ResourceOptions(parent=self)
@@ -76,11 +76,11 @@ class CoreService(pulumi.ComponentResource):
 
         # 4. ECS Service (1 vCPU, 1 GB RAM, as requested)
         self.task_def = aws.ecs.TaskDefinition(
-            f"{name}-core-task",
-            family=f"{name}-core",
+            f"{name}-task",
+            family=f"{name}",
             requires_compatibilities=["FARGATE"],
             network_mode="awsvpc",
-            cpu="1024",
+            cpu="512",
             memory="1024",
             execution_role_arn=base_infra.ecs_execution_role.arn,
             tags=self.tags,
