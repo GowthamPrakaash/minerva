@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { documents, businesses } from "@/db/schema";
+import { businesses } from "@/db/schema";
+import { getTenantSchema } from "@/db/tenant-schema";
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
@@ -24,7 +25,7 @@ export async function GET(
       .select()
       .from(businesses)
       .where(
-        and(eq(businesses.id, businessId), eq(businesses.ownerId, session.user.id))
+        and(eq(businesses.id, businessId), eq(businesses.isActive, true))
       );
 
     if (!business) {
@@ -32,12 +33,11 @@ export async function GET(
     }
 
     // Get document metadata
+    const { documents } = getTenantSchema(business.orgId);
     const [doc] = await db
       .select()
       .from(documents)
-      .where(
-        and(eq(documents.id, documentId), eq(documents.businessId, businessId))
-      );
+      .where(eq(documents.id, documentId));
 
     if (!doc) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 });
@@ -46,9 +46,9 @@ export async function GET(
     // Generate short-lived presigned GET URL (expires in 15 minutes)
     const command = new GetObjectCommand({
       Bucket: S3_BUCKET,
-      Key: doc.fileKey,
-      ResponseContentType: doc.mimeType,
-      ResponseContentDisposition: "inline", // Forces browser to display PDF instead of downloading
+      Key: doc.s3Path,
+      ResponseContentType: doc.mimeType ?? undefined,
+      ResponseContentDisposition: "inline",
     });
 
     const viewUrl = await getSignedUrl(s3Client, command, {

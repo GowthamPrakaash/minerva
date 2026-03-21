@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { documents, businesses } from "@/db/schema";
+import { businesses } from "@/db/schema";
+import { getTenantSchema } from "@/db/tenant-schema";
 import { eq, and, sum } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
@@ -26,17 +27,15 @@ export async function GET(
     .select()
     .from(businesses)
     .where(
-      and(eq(businesses.id, businessId), eq(businesses.ownerId, session.user.id))
+      and(eq(businesses.id, businessId), eq(businesses.isActive, true))
     );
 
   if (!business) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const docs = await db
-    .select()
-    .from(documents)
-    .where(eq(documents.businessId, businessId));
+  const { documents } = getTenantSchema(business.orgId);
+  const docs = await db.select().from(documents);
 
   return NextResponse.json(docs);
 }
@@ -72,10 +71,19 @@ export async function POST(
   const plan = ((session.user as any).plan as PlanType) || "trial";
   const limits = getPlanLimits(plan);
 
+  const [business] = await db
+    .select()
+    .from(businesses)
+    .where(and(eq(businesses.id, businessId), eq(businesses.isActive, true)));
+
+  if (!business) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const { documents } = getTenantSchema(business.orgId);
   const [storageResult] = await db
     .select({ totalSize: sum(documents.size) })
-    .from(documents)
-    .where(eq(documents.businessId, businessId));
+    .from(documents);
 
   const currentStorage = Number(storageResult?.totalSize || 0);
   const maxBytes = limits.maxDocumentStorageMB * 1024 * 1024;
@@ -90,7 +98,7 @@ export async function POST(
   }
 
   // Generate S3 key and presigned URL (no DB entry yet)
-  const fileKey = `${businessId}/${randomUUID()}-${fileName}`;
+  const fileKey = `${business.orgId}/${businessId}/${randomUUID()}-${fileName}`;
 
   const command = new PutObjectCommand({
     Bucket: S3_BUCKET,
@@ -141,23 +149,24 @@ export async function PUT(
     .select()
     .from(businesses)
     .where(
-      and(eq(businesses.id, businessId), eq(businesses.ownerId, session.user.id))
+      and(eq(businesses.id, businessId), eq(businesses.isActive, true))
     );
 
   if (!business) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const { documents } = getTenantSchema(business.orgId);
   const [doc] = await db
     .insert(documents)
     .values({
-      businessId,
-      name: fileName,
-      fileKey,
+      filename: fileName,
+      fileType: mimeType,
+      s3Path: fileKey,
       fileUrl,
       size: fileSize,
       mimeType,
-      ingestionStatus: "pending",
+      ingestionStatus: "initiated",
     })
     .returning();
 
@@ -185,12 +194,20 @@ export async function DELETE(
   }
 
   // Get document
+  const [business] = await db
+    .select()
+    .from(businesses)
+    .where(eq(businesses.id, businessId));
+
+  if (!business) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const { documents } = getTenantSchema(business.orgId);
   const [doc] = await db
     .select()
     .from(documents)
-    .where(
-      and(eq(documents.id, documentId), eq(documents.businessId, businessId))
-    );
+    .where(eq(documents.id, documentId));
 
   if (!doc) {
     return NextResponse.json({ error: "Document not found" }, { status: 404 });
@@ -201,11 +218,10 @@ export async function DELETE(
     await s3Client.send(
       new DeleteObjectCommand({
         Bucket: S3_BUCKET,
-        Key: doc.fileKey,
+        Key: doc.s3Path,
       })
     );
   } catch {
-    // Continue even if S3 delete fails
     console.error("Failed to delete from S3");
   }
 

@@ -45,12 +45,25 @@ import { toast } from "sonner";
 interface Document {
   id: string;
   name: string;
+  filename?: string;
   fileUrl: string;
   size: number;
   mimeType: string;
   ingestionStatus: string;
   active: boolean;
   createdAt: string;
+}
+
+interface DocumentApiResponse extends Omit<Document, "name"> {
+  name?: string;
+  filename?: string;
+}
+
+function normalizeDocument(doc: DocumentApiResponse): Document {
+  return {
+    ...doc,
+    name: doc.name ?? doc.filename ?? "Untitled document",
+  };
 }
 
 function formatSize(bytes: number) {
@@ -74,8 +87,8 @@ export default function DocumentsPage() {
     try {
       const res = await fetch(`/api/businesses/${businessId}/documents`);
       if (res.ok) {
-        const data = await res.json();
-        setDocuments(data);
+        const data: DocumentApiResponse[] = await res.json();
+        setDocuments(data.map(normalizeDocument));
       }
     } catch {
       toast.error("Failed to fetch documents");
@@ -374,9 +387,13 @@ export default function DocumentsPage() {
                               }
                               
                               setPreviewDoc({ doc, url: data.url });
-                            } catch (err: any) {
+                            } catch (err: unknown) {
                               console.error("Preview error:", err);
-                              toast.error(err.message || "Could not load document preview");
+                              const message =
+                                err instanceof Error
+                                  ? err.message
+                                  : "Could not load document preview";
+                              toast.error(message);
                             }
                           }}
                         >
