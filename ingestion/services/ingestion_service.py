@@ -25,7 +25,7 @@ from shared.storage.resolver import get_storage_provider
 
 logger = get_logger("ingestion.services.ingestion_service")
 
-_DEFAULT_EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+_DEFAULT_EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
 
 
 async def process_job(job_id: str) -> bool:

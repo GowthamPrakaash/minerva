@@ -50,7 +50,14 @@ class CoreService(pulumi.ComponentResource):
             protocol="HTTP",
             vpc_id=base_infra.vpc.vpc_id,
             target_type="ip",
-            health_check={"path": "/health"},
+            health_check={
+                "path": "/health",
+                "healthy_threshold": 2,
+                "unhealthy_threshold": 10,
+                "timeout": 5,
+                "interval": 10,
+            },
+            deregistration_delay=30,
             tags=self.tags,
             opts=pulumi.ResourceOptions(parent=self)
         )
@@ -105,6 +112,12 @@ class CoreService(pulumi.ComponentResource):
             task_definition=self.task_def.arn,
             desired_count=1,
             launch_type="FARGATE",
+            deployment_minimum_healthy_percent=100,
+            deployment_maximum_percent=200,
+            deployment_circuit_breaker={
+                "enable": True,
+                "rollback": True,
+            },
             network_configuration={
                 "subnets": base_infra.vpc.private_subnet_ids,
                 "security_groups": [base_infra.db_sg.id] # Reuse SG for internal traffic
