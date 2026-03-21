@@ -1,39 +1,79 @@
 """
-core/pipelines/pipeline_context.py — Shared data object for pipeline execution.
+core/pipelines/pipeline_context.py — Pipeline session state.
 
 Purpose:
-    PipelineContext is the single data container that flows through every
-    component in the pipeline. Components read inputs from it and write
-    their outputs to it. This ensures a clean, traceable data flow
-    without hidden state.
-
-Initial Fields (set by core before pipeline starts):
-    session_id           — UUID of the active session
-    client_id            — UUID of the B2B client (tenant)
-    channel              — str: 'web', 'whatsapp', or 'phone'
-    tenant_schema        — str: database schema name (e.g. 'tenant_clientslug')
-    audio_bytes          — bytes: raw input audio (if voice channel)
-    text_input           — str: raw text input (if text channel)
-    language_hint        — str: user-selected language or 'auto'
-    config               — dict: client config loaded from ConfigCache
-
-Fields Set by Components:
-    transcript           — str (STTComponent)
-    detected_language    — str (STTComponent)
-    translated_text      — str (TranslationComponent)
-    conversation_summary — str (MemoryComponent)
-    rag_chunks           — list[dict] (RAGComponent)
-    is_unknown           — bool (RAGComponent)
-    goal_config          — dict (GoalSteeringComponent)
-    goal_missing_fields  — list (GoalSteeringComponent)
-    goal_steer_prompt    — str (GoalSteeringComponent)
-    llm_response         — str (LLMComponent)
-    audio_output         — bytes (TTSComponent)
-    error                — str (set on component failure)
-
-Usage:
-    context = PipelineContext(session_id=..., client_id=..., ...)
-    result = pipeline_runner.run(context)
-    response_text = result.llm_response
-    response_audio = result.audio_output
+    The context object passed through each pipeline component during a
+    single message turn. It stores inputs, intermediate results,
+    and final outputs.
 """
+
+from __future__ import annotations
+
+import uuid
+from dataclasses import dataclass, field
+from typing import Any, Optional
+
+from shared.utils.latency_tracker import LatencyTracker
+
+
+@dataclass
+class PipelineContext:
+    """Session state for a single pipeline execution turn."""
+
+    # ── Input ────────────────────────────────────────────────────────────────
+    session_id: uuid.UUID
+    business_id: uuid.UUID
+    schema_name: str
+    
+    # Input data (audio or text)
+    input_audio: Optional[bytes] = None
+    input_text: Optional[str] = None
+    
+    # Language context
+    requested_language: str = "unknown"  # BCP-47 hint
+    
+    # ── State / Intermediate ──────────────────────────────────────────────────
+    
+    # Transcription results
+    transcript: str = ""
+    detected_language: str = "unknown"
+    
+    # Translation (if transcript is not English)
+    transcript_en: str = ""
+    
+    # Classification
+    is_industry_specific: bool = True
+    
+    # Memory / Summary
+    history_summary: str = ""
+    
+    # RAG Results
+    retrieved_chunks: list[dict[str, Any]] = field(default_factory=list)
+    info_available: bool = True
+    
+    # Goal Steering
+    goal_steer_instruction: str = "None"
+    
+    # LLM Result
+    llm_response_en: str = ""
+    is_unknown_query: bool = False  # Set if info not found in RAG
+    is_complete: bool = False       # Set if [COMPLETE] signal detected
+    
+    # Final Response (translated back if needed)
+    final_response: str = ""
+    final_audio: Optional[bytes] = None
+    
+    # Instrumentation
+    tracker: LatencyTracker = field(default_factory=LatencyTracker)
+    
+    # Usage metrics
+    stt_seconds: float = 0.0
+    llm_tokens: int = 0
+    tts_characters: int = 0
+    
+    # Metadata / Configuration
+    client_config: dict[str, Any] = field(default_factory=dict)
+    
+    def __post_init__(self):
+        if not self.input_text and not self.input_audio:
+            raise ValueError("PipelineContext must have either input_text or input_audio")

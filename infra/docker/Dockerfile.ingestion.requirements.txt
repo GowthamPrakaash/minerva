@@ -5,7 +5,7 @@
 pdfplumber>=0.10.0          # PDF text extraction (preferred)
 PyPDF2>=3.0.0               # PDF fallback
 python-docx>=1.1.0          # DOCX support
-sentence-transformers>=2.7.0  # Sentence embedding models
+fastembed>=0.2.0            # Lighter embedding library (onnx-based)
 faiss-cpu>=1.8.0            # Vector index (use faiss-gpu for GPU instances)
 numpy>=1.26.0
 

@@ -53,7 +53,7 @@ def doc_record(document_id, business_id):
         "id": document_id,
         "filename": "test_doc.pdf",
         "file_type": "pdf",
-        "s3_path": f"s3://minerva-test-bucket/businesses/{business_id}/docs/test_doc.pdf",
+        "storage_path": f"s3://minerva-test-bucket/businesses/{business_id}/docs/test_doc.pdf",
         "version": 1,
         "is_active": True,
         "chunk_count": None,

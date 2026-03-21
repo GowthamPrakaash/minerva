@@ -1,19 +1,39 @@
 """
-core/api/internal.py — Internal-only endpoints (not publicly accessible).
-
-Purpose:
-    Provides operational endpoints accessible only within the VPC.
-    These are NOT exposed through the public ALB.
-
-Endpoints:
-    POST /internal/cache/refresh — Force the ConfigCache singleton to
-         reload all configuration from the database immediately.
-         Called by the dashboard after critical config changes.
-
-    GET  /internal/health        — Health check for ALB target group.
-         Returns 200 if the service is operational.
-
-Security:
-    These endpoints must be restricted to internal network access only
-    (VPC security group rules). No JWT required.
+core/api/internal.py — Operations and monitoring endpoints.
 """
+
+import uuid
+from fastapi import APIRouter, Response, status
+from shared.config.config_cache import ConfigCache
+from shared.db.connection import DBConnectionPool
+from shared.utils.logging import get_logger
+
+logger = get_logger("core.api.internal")
+router = APIRouter(prefix="/internal", tags=["internal"])
+
+
+@router.get("/health")
+async def health_check():
+    """Service health status."""
+    return {
+        "status": "healthy",
+        "version": "1.0.0",
+        "db_connected": DBConnectionPool.get_instance().is_initialized()
+    }
+
+
+@router.post("/cache/refresh")
+async def refresh_cache():
+    """Manually trigger a full refresh of the ConfigCache."""
+    cache = ConfigCache.get_instance()
+    await cache.refresh_all()
+    logger.info("Internal: ConfigCache manually refreshed.")
+    return {"status": "success", "message": "Cache refreshed"}
+
+
+@router.post("/cache/invalidate/{business_id}")
+async def invalidate_business_cache(business_id: uuid.UUID):
+    """Invalidate cache for a specific business."""
+    cache = ConfigCache.get_instance()
+    await cache.invalidate(business_id)
+    return {"status": "success", "business_id": str(business_id)}

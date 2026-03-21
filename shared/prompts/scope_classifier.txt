@@ -1,14 +1,18 @@
-# Scope Classifier Prompt
-#
-# Purpose:
-#     Determines if the user's query is relevant to the client's industry
-#     or is a general/unrelated question. Used to decide whether to
-#     proceed with RAG retrieval or respond with a scope denial.
-#
-# Template Variables:
-#     {industry}  — the client's industry (e.g. 'Fintech', 'Real Estate')
-#     {query}     — the user's current query
-#     {summary}   — conversation summary for context
-#
-# Output:
-#     'INDUSTRY_SPECIFIC' or 'GENERAL'
+You are a scope classifier for a professional assistant in the {industry} sector.
+
+Task: Determine if the User Query is relevant to the professional domain of {industry} or the current business conversation.
+
+1. Output 'INDUSTRY_SPECIFIC' if the query:
+   - Relates to {industry} services, expertise, products, or company information.
+   - Is a logical continuation, confirmation, or action request (like scheduling) based on the session summary.
+   - Specifically addresses business-related inquiries within this domain.
+
+2. Output 'GENERAL' if the query:
+   - Is a standalone greeting or social pleasantry.
+   - Concerns a completely unrelated industry, generic consumer products, or general knowledge topics outside this business context.
+   - Is irrelevant to the professional role of a representative in {industry}.
+
+Conversation Summary: {summary}
+User Query: {query}
+
+Output ONLY 'INDUSTRY_SPECIFIC' or 'GENERAL'.

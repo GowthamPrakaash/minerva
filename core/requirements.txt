@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+pydantic
+PyJWT
+python-multipart
+httpx
+asyncpg
+aiofiles
+boto3
+python-dotenv
+fastembed>=0.2.0
+faiss-cpu>=1.8.0
+numpy>=1.26.0

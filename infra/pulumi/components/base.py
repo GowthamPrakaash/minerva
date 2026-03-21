@@ -79,6 +79,7 @@ class BaseInfra(pulumi.ComponentResource):
             password=self.db_password.result,
             db_subnet_group_name=self.db_subnet_group.name,
             vpc_security_group_ids=[self.db_sg.id],
+            multi_az=False,
             skip_final_snapshot=True,
             tags=self.tags,
             opts=pulumi.ResourceOptions(parent=self, depends_on=[self.db_subnet_group])

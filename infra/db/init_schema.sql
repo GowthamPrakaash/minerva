@@ -78,6 +78,22 @@ CREATE TABLE IF NOT EXISTS public.system_settings (
     last_updated_by UUID,
     last_updated_on TIMESTAMPTZ DEFAULT now()
 );
--- 6. Key Indexes
+
+-- 6. API Keys (Global lookup for authentication)
+CREATE TABLE IF NOT EXISTS public.api_keys (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    business_id UUID NOT NULL REFERENCES public.businesses(id) ON DELETE CASCADE,
+    api_key TEXT UNIQUE NOT NULL,
+    api_secret_hash TEXT,
+    is_active BOOLEAN DEFAULT true,
+
+    -- Audit columns
+    created_by UUID,
+    created_on TIMESTAMPTZ DEFAULT now(),
+    last_updated_by UUID,
+    last_updated_on TIMESTAMPTZ DEFAULT now()
+);
+
+-- 7. Key Indexes
 CREATE INDEX IF NOT EXISTS idx_businesses_org_id ON public.businesses(org_id);
 CREATE INDEX IF NOT EXISTS idx_businesses_slug ON public.businesses(slug);

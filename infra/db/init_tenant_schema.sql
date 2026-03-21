@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     filename TEXT NOT NULL,
     file_type TEXT NOT NULL, -- pdf, docx, txt, etc.
-    s3_path TEXT NOT NULL,
+    storage_path TEXT NOT NULL,
     version INTEGER DEFAULT 1,
     is_active BOOLEAN DEFAULT true,
     chunk_count INTEGER,
@@ -115,9 +115,8 @@ CREATE TABLE IF NOT EXISTS usage_records (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
-    stt_seconds INTEGER,
-    llm_tokens INTEGER,
-    tts_characters INTEGER,
+    metrics JSONB,
+    latency_ms JSONB,
     cost_estimate FLOAT,
 
     -- Audit columns

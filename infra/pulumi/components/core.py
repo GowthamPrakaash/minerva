@@ -20,7 +20,7 @@ class CoreService(pulumi.ComponentResource):
 
         # 2. Log Group
         self.log_group = aws.cloudwatch.LogGroup(
-            f"/ecs/{name}-core",
+            f"/ecs/{name}-log-group",
             retention_in_days=3,
             tags=self.tags,
             opts=pulumi.ResourceOptions(parent=self)
@@ -50,7 +50,14 @@ class CoreService(pulumi.ComponentResource):
             protocol="HTTP",
             vpc_id=base_infra.vpc.vpc_id,
             target_type="ip",
-            health_check={"path": "/health"},
+            health_check={
+                "path": "/health",
+                "healthy_threshold": 2,
+                "unhealthy_threshold": 10,
+                "timeout": 5,
+                "interval": 10,
+            },
+            deregistration_delay=30,
             tags=self.tags,
             opts=pulumi.ResourceOptions(parent=self)
         )
@@ -69,11 +76,11 @@ class CoreService(pulumi.ComponentResource):
 
         # 4. ECS Service (1 vCPU, 1 GB RAM, as requested)
         self.task_def = aws.ecs.TaskDefinition(
-            f"{name}-core-task",
-            family=f"{name}-core",
+            f"{name}-task",
+            family=f"{name}",
             requires_compatibilities=["FARGATE"],
             network_mode="awsvpc",
-            cpu="1024",
+            cpu="512",
             memory="1024",
             execution_role_arn=base_infra.ecs_execution_role.arn,
             tags=self.tags,
@@ -105,6 +112,12 @@ class CoreService(pulumi.ComponentResource):
             task_definition=self.task_def.arn,
             desired_count=1,
             launch_type="FARGATE",
+            deployment_minimum_healthy_percent=100,
+            deployment_maximum_percent=200,
+            deployment_circuit_breaker={
+                "enable": True,
+                "rollback": True,
+            },
             network_configuration={
                 "subnets": base_infra.vpc.private_subnet_ids,
                 "security_groups": [base_infra.db_sg.id] # Reuse SG for internal traffic
@@ -117,10 +130,12 @@ class CoreService(pulumi.ComponentResource):
             }],
             opts=pulumi.ResourceOptions(parent=self)
         )
+        self.repo_url = self.repo.repository_url
         self.service_url = pulumi.Output.format(
             "http://{0}",
             self.alb.dns_name
         )
         self.register_outputs({
+            "repo_url": self.repo_url,
             "service_url": self.service_url
         })
